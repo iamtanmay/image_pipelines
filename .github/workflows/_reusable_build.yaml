@@ -1,0 +1,202 @@
+name: _ Reusable Build Workflow
+
+on:
+  workflow_call:
+    inputs:
+      subdirectory:
+        description: "Subdirectory to build"
+        required: true
+        type: string
+      dockerfile:
+        description: "Dockerfile to use"
+        required: false
+        type: string
+        default: "Dockerfile"
+      build-args:
+        description: "Additional build args to pass to the build"
+        required: false
+        type: string
+        default: ""
+      suffix:
+        description: "Suffix to add to the image name"
+        required: false
+        type: string
+        default: ""
+      sign-image:
+        description: "Sign the image with cosign"
+        required: false
+        type: boolean
+        default: true
+      scan-image:
+        description: "Scan the image with trivy"
+        required: false
+        type: boolean
+        default: true
+      run-tests:
+        description: "Run tests"
+        required: false
+        type: boolean
+        default: true
+      fail-on-lint-error:
+        description: "Fail the build if linting fails"
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  hadolint:
+    runs-on:
+      - self-hosted
+      - infra
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Run Hadolint
+        uses: dhl-actions-incubation/hadolint-action@v1
+        with:
+          dockerfile: ${{ inputs.subdirectory }}/${{ inputs.dockerfile }}
+          no-fail: ${{ !inputs.fail-on-lint-error }}
+
+  build:
+    runs-on:
+      - self-hosted
+      - infra
+
+    needs:
+      - hadolint
+
+    env:
+      IMAGE_NAME: rancher-pipeline/${{ inputs.subdirectory }}${{ inputs.suffix }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Setup task
+        uses: dhl-actions-incubation/setup-task-action@v0
+
+      - name: Set up cosign
+        if: inputs.sign-image
+        uses: dhl-actions-incubation/setup-cosign@v1
+
+      - name: Set container registry and image by release flag
+        run: |
+          if [ "${{ startsWith(github.ref, 'refs/tags/') }}" == "true" ]; then
+            export STAGE=release
+          else
+            export STAGE=dev
+          fi
+
+          export IMAGE_REPO=rancher-docker-${STAGE}-local.artifactory.dhl.com
+          echo "IMAGE_REPO=${IMAGE_REPO}" >> $GITHUB_ENV
+          echo "IMAGE_FULL=${IMAGE_REPO}/${IMAGE_NAME}" >> $GITHUB_ENV
+          echo "IMAGE_FULL_STABLE=rancher-docker-release.artifactory.dhl.com/${IMAGE_NAME}" >> $GITHUB_ENV
+
+      - name: Remove `refs/tags/$component-` from tag
+        if: github.event_name == 'push'
+        run: |
+          echo "TAG=${GITHUB_REF/refs\/tags\/$COMPONENT-/}" >> $GITHUB_ENV
+        env:
+          GITHUB_REF: ${{ github.ref }}
+          COMPONENT: ${{ inputs.subdirectory }}
+
+      - name: Login to container image registry
+        run: |
+          echo "Logging in to ${IMAGE_REPO}"
+          docker login ${{ env.IMAGE_REPO }} \
+            --username ${ARTIFACTORY_USER} \
+            --password-stdin <<<"${ARTIFACTORY_PASSWORD}"
+        env:
+          ARTIFACTORY_USER: ${{ secrets.ARTIFACTORY_USER }}
+          ARTIFACTORY_PASSWORD: ${{ secrets.ARTIFACTORY_PASSWORD }}
+
+      - name: Generate docker metadata
+        id: meta
+        uses: dhl-actions-incubation/docker-metadata-action@v4
+        with:
+          images: ${{ env.IMAGE_FULL }}
+          tags: |
+            # pr tag
+            type=ref,event=pr
+
+            # release tags
+            type=semver,pattern={{version}},enable=${{ startsWith(github.ref, 'refs/tags/') }},value=${{ env.TAG }}
+            type=semver,pattern={{major}}.{{minor}},enable=${{ startsWith(github.ref, 'refs/tags/') }},value=${{ env.TAG }}
+            type=semver,pattern={{major}},enable=${{ startsWith(github.ref, 'refs/tags/') }},value=${{ env.TAG }}
+
+            # always fallback to sha
+            type=sha
+
+      - name: Build docker image
+        id: build
+        uses: dhl-actions/build-push-action-external@v4
+        with:
+          push: true
+          context: ${{ inputs.subdirectory }}
+          file: ${{ inputs.subdirectory }}/${{ inputs.dockerfile }}
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          build-args: ${{ inputs.build-args }}
+          cache-from: |
+            type=registry,ref=${{ env.IMAGE_FULL_STABLE }}:latest
+          cache-to: type=inline
+        env:
+          TWISTLOCK_USERNAME: ${{ secrets.TWISTLOCK_USERNAME || '' }}
+          TWISTLOCK_PASSWORD: ${{ secrets.TWISTLOCK_PASSWORD || '' }}
+
+      - name: Scan image with trivy for output
+        if: inputs.scan-image
+        uses: dhl-actions-incubation/trivy-action@v0
+        with:
+          scan-type: image
+          scan-ref: ${{ env.IMAGE_FULL }}@${{ steps.build.outputs.digest }}
+          scanners: vuln
+
+      - name: Scan image with trivy for attestations
+        if: inputs.sign-image && inputs.scan-image
+        uses: dhl-actions-incubation/trivy-action@v0
+        with:
+          scan-type: image
+          scan-ref: ${{ env.IMAGE_FULL }}@${{ steps.build.outputs.digest }}
+          scanners: vuln
+          output: ${{ inputs.subdirectory }}/vulns.json
+          format: cosign-vuln
+
+      - name: Sign image with cosign
+        if: inputs.sign-image
+        run: |
+          echo "Signing image ${{ env.IMAGE_FULL }}@${{ steps.build.outputs.digest }}"
+          cosign sign \
+            --tlog-upload=false \
+            --key env://COSIGN_PRIVATE_KEY \
+            ${{ env.IMAGE_FULL }}@${{ steps.build.outputs.digest }}
+        env:
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+
+      - name: Sign vulnerability attestations with cosign
+        if: inputs.sign-image && inputs.scan-image
+        run: |
+          echo "Uploading attestations for image ${{ env.IMAGE_FULL }}@${{ steps.build.outputs.digest }}"
+          cosign attest \
+            --tlog-upload=false \
+            --key env://COSIGN_PRIVATE_KEY \
+            --type vuln \
+            --predicate ${{ inputs.subdirectory }}/vulns.json \
+            ${{ env.IMAGE_FULL }}@${{ steps.build.outputs.digest }}
+        env:
+          COSIGN_PRIVATE_KEY: ${{ secrets.COSIGN_PRIVATE_KEY }}
+          COSIGN_PASSWORD: ${{ secrets.COSIGN_PASSWORD }}
+
+      - name: Run tests
+        if: inputs.run-tests
+        working-directory: ${{ inputs.subdirectory }}
+        run: task test${{ inputs.suffix }}
+        env:
+          IMAGEREF: ${{ env.IMAGE_FULL }}@${{ steps.build.outputs.digest }}
