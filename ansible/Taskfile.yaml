@@ -1,0 +1,44 @@
+version: "3"
+
+vars:
+  REPO: '{{ .REPO | default "rancher-pipeline" }}'
+  IMAGE: '{{ .IMAGE | default "ansible" }}'
+  TAG: '{{ .TAG | default "dev" }}'
+  FULLIMAGE: '{{ default (printf "%s/%s:%s" .REPO .IMAGE .TAG ) .FULLIMAGE }}'
+  IMAGEREF: '{{ .IMAGEREF | default .FULLIMAGE }}'
+
+tasks:
+  build:
+    desc: Build image
+    cmds:
+      - docker build -t {{ .FULLIMAGE }} .
+    sources:
+      - "**"
+
+  run:
+    desc: Run image
+    cmds:
+      - docker run -it --rm {{ .FULLIMAGE }} {{ .CLI_ARGS }}
+    interactive: true
+    deps:
+      - build
+
+  test:
+    desc: Test image
+    cmds:
+      - "{{ .TEST_CMD }} 'python --version'"
+      - "{{ .TEST_CMD }} 'ansible --version'"
+      # fixme: don't check ansible-lint for now, as the check takes 2 minutes
+      # due to it trying to reach out to the internet
+      # - "{{ .TEST_CMD }} 'ansible-lint --version'"
+      - "{{ .TEST_CMD }} 'kubectl version --short --client'"
+      - "{{ .TEST_CMD }} 'helm version --short'"
+      - "{{ .TEST_CMD }} 'helm diff version'"
+      - "{{ .TEST_CMD }} 'conftest --version'"
+      - "{{ .TEST_CMD }} 'jq --version'"
+      - "{{ .TEST_CMD }} 'yq -V'"
+      - "{{ .TEST_CMD }} 'bat --version'"
+      - "{{ .TEST_CMD }} 'kubeseal --version'"
+      - "{{ .TEST_CMD }} 'rke --version'"
+    vars:
+      TEST_CMD: docker run --rm {{ .IMAGEREF }} --

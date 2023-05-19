@@ -1,0 +1,23 @@
+[[source]]
+url = "https://artifactory.dhl.com/api/pypi/pypi/simple"
+verify_ssl = true
+name = "artifactory"
+
+[[source]]
+url = "https://artifactory.dhl.com/api/pypi/pypi-dhl-local-dev-public/simple"
+verify_ssl = true
+name = "artifactory-vra"
+
+[packages]
+ansible = "~=7.5.0"
+ansible-lint = "~=6.16.0"
+passlib = "~=1.7.4"
+tomli = "~=2.0.1"
+jmespath = "~=1.0.1"
+docker = "~=6.1.2"
+kubernetes = "~=26.1.0"
+
+vra-api = {version = "~=3.2.0", index = "artifactory-vra"}
+
+[requires]
+python_version = "3"

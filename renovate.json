@@ -1,0 +1,34 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:base",
+    ":separatePatchReleases",
+    ":separateMultipleMajorReleases",
+    ":automergePatch",
+    "regexManagers:dockerfileVersions"
+  ],
+  "reviewersFromCodeOwners": true,
+  "additionalBranchPrefix": "{{parentDir}}/",
+  "commitMessageSuffix": " ({{parentDir}})",
+  "addLabels": ["renovate", "image/{{parentDir}}", "dep/{{depName}}"],
+  "packageRules": [
+    {
+      "matchDatasources": ["github-releases"],
+      "matchManagers": ["dockerfile", "regex"],
+      "extractVersion": "(v|)(?<version>.*)"
+    },
+    {
+      "matchDepNames": ["stedolan/jq"],
+      "extractVersion": "jq-?(?<major>\\d+)\\.(?<minor>\\d+)"
+    },
+    {
+      "matchDepNames": ["kubernetes-sigs/kustomize"],
+      "matchDatasources": ["github-releases"],
+      "extractVersion": "kustomize/v(?<version>.*)"
+    },
+    {
+      "matchDepNames": ["ansible", "ansible-core"],
+      "groupName": "ansible"
+    }
+  ]
+}

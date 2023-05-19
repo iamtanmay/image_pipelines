@@ -1,0 +1,12 @@
+{
+  "scripts": {
+    "ci": "yarn install --frozen-lockfile",
+    "release": "release-please"
+  },
+  "devDependencies": {
+    "release-please": "^15.10.4"
+  },
+  "engines": {
+    "node": "18"
+  }
+}

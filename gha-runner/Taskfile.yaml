@@ -1,0 +1,162 @@
+version: "3"
+
+vars:
+  REPO: '{{ .REPO | default "rancher-pipeline" }}'
+  IMAGE: '{{ .IMAGE | default "gha-runner" }}'
+  TAG: '{{ .TAG | default "dev" }}'
+  FULLIMAGE: '{{ default (printf "%s/%s:%s" .REPO .IMAGE .TAG ) .FULLIMAGE }}'
+
+tasks:
+  build-all:
+    desc: Build all images
+    cmds:
+      - task: build-ubuntu-20.04
+      - task: build-ubuntu-22.04
+      - task: build-ubuntu-20.04-dind
+      - task: build-ubuntu-22.04-dind
+
+  build-ubuntu-20.04:
+    desc: Build Ubuntu 20.04 image
+    cmds:
+      - task: build-internal
+        vars:
+          IMAGEREF: "{{ .FULLIMAGE }}-ubuntu-20.04"
+          DOCKERFILE: ubuntu-20.04.Dockerfile
+    sources:
+      - "config/**"
+      - "ubuntu-20.04.Dockerfile"
+
+  build-ubuntu-22.04:
+    desc: Build Ubuntu 22.04 image
+    cmds:
+      - task: build-internal
+        vars:
+          IMAGEREF: "{{ .FULLIMAGE }}-ubuntu-22.04"
+          DOCKERFILE: ubuntu-22.04.Dockerfile
+    sources:
+      - "config/**"
+      - "ubuntu-22.04.Dockerfile"
+
+  build-ubuntu-20.04-dind:
+    desc: Build Ubuntu 20.04 dind image
+    cmds:
+      - task: build-internal
+        vars:
+          IMAGEREF: "{{ .FULLIMAGE }}-ubuntu-20.04-dind"
+          DOCKERFILE: ubuntu-20.04-dind.Dockerfile
+    sources:
+      - "config/**"
+      - "ubuntu-20.04-dind.Dockerfile"
+
+  build-ubuntu-22.04-dind:
+    desc: Build Ubuntu 22.04 dind image
+    cmds:
+      - task: build-internal
+        vars:
+          IMAGEREF: "{{ .FULLIMAGE }}-ubuntu-22.04-dind"
+          DOCKERFILE: ubuntu-22.04-dind.Dockerfile
+    sources:
+      - "config/**"
+      - "ubuntu-22.04-dind.Dockerfile"
+
+  build-internal:
+    desc: Internal build task
+    internal: true
+    cmds:
+      - docker build -t {{ .IMAGEREF }} -f {{ .DOCKERFILE }} . {{ .CLI_ARGS }}
+
+  run-ubuntu-20.04:
+    desc: Run Ubuntu 20.04 image
+    cmds:
+      - task: run-internal
+        vars:
+          IMAGEREF: "{{ .FULLIMAGE }}-ubuntu-20.04"
+    deps:
+      - build-ubuntu-20.04
+
+  run-ubuntu-22.04:
+    desc: Run Ubuntu 22.04 image
+    cmds:
+      - task: run-internal
+        vars:
+          IMAGEREF: "{{ .FULLIMAGE }}-ubuntu-22.04"
+    deps:
+      - build-ubuntu-22.04
+
+  run-ubuntu-20.04-dind:
+    desc: Run Ubuntu 20.04 dind image
+    cmds:
+      - task: run-internal
+        vars:
+          IMAGEREF: "{{ .FULLIMAGE }}-ubuntu-20.04-dind"
+    deps:
+      - build-ubuntu-20.04-dind
+
+  run-ubuntu-22.04-dind:
+    desc: Run Ubuntu 22.04 dind image
+    cmds:
+      - task: run-internal
+        vars:
+          IMAGEREF: "{{ .FULLIMAGE }}-ubuntu-22.04-dind"
+    deps:
+      - build-ubuntu-22.04-dind
+
+  run-internal:
+    desc: Internal run task
+    internal: true
+    cmds:
+      - docker run -it --rm {{ .IMAGEREF }} {{ .CLI_ARGS }}
+    interactive: true
+
+  test-all:
+    desc: Test all images
+    cmds:
+      - task: test-ubuntu-20.04
+      - task: test-ubuntu-22.04
+      - task: test-ubuntu-20.04-dind
+      - task: test-ubuntu-22.04-dind
+
+  test-ubuntu-20.04:
+    desc: Test Ubuntu 20.04 image
+    cmds:
+      - task: test-internal
+        vars:
+          IMAGEREF: '{{ default (printf "%s-ubuntu-20.04" .FULLIMAGE) .IMAGEREF }}'
+
+  test-ubuntu-22.04:
+    desc: Test Ubuntu 22.04 image
+    cmds:
+      - task: test-internal
+        vars:
+          IMAGEREF: '{{ default (printf "%s-ubuntu-22.04" .FULLIMAGE) .IMAGEREF }}'
+
+  test-ubuntu-20.04-dind:
+    desc: Test Ubuntu 20.04 dind image
+    cmds:
+      - task: test-internal
+        vars:
+          IMAGEREF: '{{ default (printf "%s-ubuntu-20.04-dind" .FULLIMAGE) .IMAGEREF }}'
+
+  test-ubuntu-22.04-dind:
+    desc: Test Ubuntu 22.04 dind image
+    cmds:
+      - task: test-internal
+        vars:
+          IMAGEREF: '{{ default (printf "%s-ubuntu-22.04-dind" .FULLIMAGE) .IMAGEREF }}'
+
+  test-internal:
+    desc: Internal test method
+    internal: true
+    cmds:
+      - "{{ .TEST_CMD }} 'cat /etc/os-release'"
+      - "{{ .TEST_CMD }} 'kubectl version --short --client'"
+      - "{{ .TEST_CMD }} 'kustomize version'"
+      - "{{ .TEST_CMD }} 'helm version --short'"
+      - "{{ .TEST_CMD }} 'helm diff version'"
+      - "{{ .TEST_CMD }} 'jq --version'"
+      - "{{ .TEST_CMD }} 'yq -V'"
+      - "{{ .TEST_CMD }} 'twistcli --version'"
+      - "{{ .TEST_CMD }} 'docker buildx version'"
+      - "{{ .TEST_CMD }} 'gh --version'"
+    vars:
+      TEST_CMD: "docker run --rm {{ .IMAGEREF }} --"
