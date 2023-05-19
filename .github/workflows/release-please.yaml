@@ -1,0 +1,54 @@
+name: Release Please
+
+on:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+jobs:
+  release-please:
+    name: Release Please
+
+    runs-on:
+      - self-hosted
+      - infra
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0
+
+      - name: Get token
+        id: get-token
+        uses: dhl-actions/get-github-app-token@v0.1.1
+        with:
+          login: ${{ github.repository_owner }}
+          app_id: ${{ secrets.APP_APPID }}
+          private_key: ${{ secrets.APP_APPKEY }}
+
+      - name: Set up Node.js LTS and yarn
+        uses: dhl-actions-incubation/surrogate-setup-node@v0
+        with:
+          node-version: "lts"
+          cache: "yarn"
+
+      - name: Install release-please
+        run: yarn --frozen-lockfile
+
+      - name: Release Please - Create Releases
+        run: |
+          yarn release github-release \
+            --repo-url ${{ github.repository }} \
+            --token ${{ steps.get-token.outputs.token }} \
+            --api-url ${{ github.api_url }} \
+            --graphql-url ${{ github.api_url }}
+
+      - name: Release Please - Create Pull Requests
+        run: |
+          yarn release release-pr \
+            --repo-url ${{ github.repository }} \
+            --token ${{ steps.get-token.outputs.token }} \
+            --api-url ${{ github.api_url }} \
+            --graphql-url ${{ github.api_url }}

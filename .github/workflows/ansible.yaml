@@ -1,0 +1,19 @@
+name: Build Ansible image
+
+on:
+  push:
+    tags:
+      - "ansible-*"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "ansible/**"
+
+jobs:
+  ansible:
+    uses: ./.github/workflows/_reusable_build.yaml
+    secrets: inherit
+    with:
+      subdirectory: "ansible"
+      fail-on-lint-error: true

@@ -1,0 +1,64 @@
+name: Build GitHub Action Runner image
+
+on:
+  push:
+    tags:
+      - "gha-runner-*"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "gha-runner/**"
+
+env:
+  TWISTLOCK_USERNAME: ${{ secrets.TWISTLOCK_USERNAME }}
+  TWISTLOCK_PASSWORD: ${{ secrets.TWISTLOCK_PASSWORD }}
+
+jobs:
+  gha-runner-2004:
+    uses: ./.github/workflows/_reusable_build.yaml
+    secrets: inherit
+    with:
+      subdirectory: "gha-runner"
+      dockerfile: ubuntu-20.04.Dockerfile
+      suffix: -ubuntu-20.04
+      build-args: |
+        TWISTLOCK_USERNAME
+        TWISTLOCK_PASSWORD
+      fail-on-lint-error: true
+
+  gha-runner-2204:
+    uses: ./.github/workflows/_reusable_build.yaml
+    secrets: inherit
+    with:
+      subdirectory: "gha-runner"
+      dockerfile: ubuntu-22.04.Dockerfile
+      suffix: -ubuntu-22.04
+      build-args: |
+        TWISTLOCK_USERNAME
+        TWISTLOCK_PASSWORD
+      fail-on-lint-error: true
+
+  gha-runner-2004-dind:
+    uses: ./.github/workflows/_reusable_build.yaml
+    secrets: inherit
+    with:
+      subdirectory: "gha-runner"
+      dockerfile: ubuntu-20.04-dind.Dockerfile
+      suffix: -ubuntu-20.04-dind
+      build-args: |
+        TWISTLOCK_USERNAME
+        TWISTLOCK_PASSWORD
+      fail-on-lint-error: true
+
+  gha-runner-2204-dind:
+    uses: ./.github/workflows/_reusable_build.yaml
+    secrets: inherit
+    with:
+      subdirectory: "gha-runner"
+      dockerfile: ubuntu-22.04-dind.Dockerfile
+      suffix: -ubuntu-22.04-dind
+      build-args: |
+        TWISTLOCK_USERNAME
+        TWISTLOCK_PASSWORD
+      fail-on-lint-error: true
