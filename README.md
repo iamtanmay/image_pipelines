@@ -1,9 +1,7 @@
 # Rancher Pipeline Images
 
-This repository contains the Dockerfiles for the images that are used by the
-*Data Lake Kubernetes Platform* team for their automation pipelines and to build
-the images that are used by the GitHub Action runners provided in cooperation
-with the *Data Lake Open Source Platform* team.
+This repository contains the Dockerfiles for the images for automation pipelines and to build
+the images that are used by the GitHub Action runners
 
 ## Images
 
@@ -41,30 +39,22 @@ up to date using Renovate and automated pull requests.
 
 - `rancher-docker-release.artifactory.dhl.com/rancher-pipeline/ansible`
 
-This image is mainly used in the automation pipelines which are being maintained
-in the
-[`data-lake-10108/rancher-dl`](https://git.dhl.com/DATA-LAKE-10108/rancher-dl)
-repository. Those pipelines are Ansible based, so the image contains Python,
-Ansible as well as some additional CLI tools. A list of the tools can be found
-in the Dockerfile. These images are not meant as replacements for the GitHub
-Action runner images, but can instead be used Ansible commands as part of GitHub
-Actions workflows.
+Image contains Python, Ansible as well as some additional CLI tools. A list of the 
+tools can be found in the Dockerfile. These images are not meant as replacements 
+for the GitHub Action runner images, but can instead be used Ansible commands as 
+part of GitHub Actions workflows.
 
 ## Image Tags
 
 Images are released by pushed to the `main` branch of this repository and
-trigger a build and push of the images to the
-`rancher-docker-release.artifactory.dhl.com/rancher-pipeline` Artifactory
-registry. The following tags are used:
+trigger a build and push of the images to the registry. The following tags are used:
 
 - `latest` - the latest version of the image, only available in the production
   registry
 - `sha-<sha>` - the image with the specific git commit SHA
 
 Additionally, the CI/CD pipeline for this repository also triggers a build on
-Pull Requests and pushes those images to
-`rancher-docker-dev.artifactory.dhl.com/rancher-pipeline`. The set of tags for
-those images is as follows:
+Pull Requests and pushes those images. The set of tags for those images is as follows:
 
 - `sha-<sha>` - the image with the specific git commit SHA
 - `pr-<pr-number>` - the image built for a specific pull request, only available
